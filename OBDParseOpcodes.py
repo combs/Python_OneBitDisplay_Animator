@@ -130,7 +130,7 @@ def parseFrame(compressed, args, index):
 
             if op==OP_REPEAT:
                 # long repeat
-                repeats = this & 0b00111111
+                repeats = (this & 0b00111111) + 1
                 datum = compressed[index + 1]
                 parsed += [Repeat(data=datum, repeats=repeats)]
                 offset = 2
@@ -205,8 +205,8 @@ def parseFrame(compressed, args, index):
 
             print("Current local offset", offset, "blocks output", blocks, "/", desired, "overall file index", index)
         else:
-            raise ValueError("Somehow we have overflowed...")
-
+            return (parsed, None)
+            
     return (parsed, future)
 
 
@@ -238,5 +238,5 @@ if __name__=="__main__":
         if index==None:
             break
     
-    print("Total decoded bitstream:", output)
+    # print("Total decoded bitstream:", output)
 
