@@ -19,9 +19,15 @@ OP_REPEATSKIP = 0x80
 OP_REPEAT = 0xC0
 # 1100 0000
 
-# 10111001
+# 0xc2 11000010
+# repeat 3
+
+# 0xb9 10111001
 # repeat 8, skip 2
 
+
+# 0x98 10011000
+# repeat 4, skip 0
 
 # 0x38 
 # 0011 1000
@@ -110,13 +116,13 @@ def getNextSmallCopy(deltas, index):
     length = 0
     values = []
     overall = len(deltas)
-    print("getNextSmallCopy index", index, "value", deltas[index + length], type(deltas[index+length]))   
+    # print("getNextSmallCopy index", index, "value", deltas[index + length], type(deltas[index+length]))   
 
     while (index + length < overall - 1) and (type(deltas[index + length + 1]) == numpy.uint8) and (length < 7):
         # values += [deltas[index + length + 1]]
         length += 1
     values = deltas[index + 1:index + length + 1]
-    print("got values", values)
+    # print("got values", values)
     return values
 
 
@@ -124,16 +130,16 @@ def getLargeCopy(deltas, index):
     length = 0
     values = []
     overall = len(deltas)
-    print("getLargeCopy index", index, "value", deltas[index + length], type(deltas[index+length]))   
+    # print("getLargeCopy index", index, "value", deltas[index + length], type(deltas[index+length]))   
 
     while (index + length < overall - 1) and (type(deltas[index + length]) == numpy.uint8) and (length < 256):
         # print("ding", deltas[index + length], length)   
         # values += [deltas[index + length]]
         length += 1
         
-    print("final length", length)
+    # print("final length", length)
     values = deltas[index:index+length]
-    print("got values", values)
+    # print("got values", values)
     return values
 
 
@@ -149,19 +155,23 @@ def generateOpCodes(deltas, pixels):
         if isinstance(item, Repeat):
             count = item.count
 
-            if (count <= 7) and isNextSmallSkip(deltas, index):
+            if (count <= 7):
                 # OP_REPEATSKIP, 0-7 0-7
-                print("OP_REPEATSKIP")
-                skips = deltas[index + 1].count
-                output += [OP_REPEATSKIP | (count << 3) | skips, item.count]
-                index += 2
-                blocks += count + skips
+                skips = 0
+                if isNextSmallSkip(deltas, index):
+                    skips = deltas[index + 1].count
+                    index += 1
+                print("OP_REPEATSKIP", count, "x", item.data, "then", skips, "skips")
+                output += [OP_REPEATSKIP | count << 3 | skips, item.data]
 
+                index += 1
+
+                blocks += count + skips
 
             else:
                 # OP_REPEAT, 1-64
-                print("OP_REPEAT")
-                output += [OP_REPEAT | (count - 1), item.count]
+                print("OP_REPEAT", count, "x", item.data)
+                output += [OP_REPEAT | (count - 1), item.data]
                 index += 1
                 blocks += item.count
 
@@ -176,8 +186,6 @@ def generateOpCodes(deltas, pixels):
                 output += [OP_SKIPCOPY | (count << 3) | (copies), *copy]
                 index += copies + 1
                 blocks += count + copies
-
-
                 
             else:
                 print("big skip")
@@ -186,31 +194,35 @@ def generateOpCodes(deltas, pixels):
                 index += 1
                 blocks += count
 
-
         else:
 
             # is value
             large = getLargeCopy(deltas, index)
             small = large[0:8]
             # small = getNextSmallCopy(deltas, index)
-            print("copy",large,"small", small)
-            if len(large) and len(large) < 8:
+            print("copy bytes",large)
+            length = len(large)
+
+            if length > 8:
+                print("big copy",length)
+                output += [OP_LONGCOPY, length - 1, *large]
+                index += length
+                blocks += length
+
+            elif length:
                 skips = 0
-                print("OP_COPYSKIP length",len(large))
                 # OP_COPYSKIP
     
-                if isNextSmallSkip(deltas, index + len(large) - 1):
-                    skips = deltas[index + len(large)].count
+                if isNextSmallSkip(deltas, index + length - 1):
+                    skips = deltas[index + length].count
 
-                output += [OP_COPYSKIP | ((len(large)-1) << 3) | skips, *small]
+                opcode = OP_COPYSKIP | ((length - 1) << 3) | skips
+
+                output += [opcode, *small]
+                print("OP_COPYSKIP length", length, "skips", skips, "opcode", bin(opcode))
+
                 index += len(small)
                 blocks += len(small) + skips
-
-            elif len(large):
-                print("big copy",len(large))
-                output += [OP_COPYSKIP, *large]
-                index += len(large)
-                blocks += len(large)
 
             else:
                 print(item, "end?")
@@ -251,7 +263,7 @@ def compareFrames(previous, current):
         # print("current", currbytes, "previous", prevbytes)
         deltas = [0] * len(prevbytes)
 
-        print("Pass 1: Computing deltas, adding Skips")
+        print("Pass 1: Computing delta, adding Skips")
 
         for index in range(len(deltas)):
             # print(currbytes[index], prevbytes[index])
@@ -297,7 +309,7 @@ def compareFrames(previous, current):
 
 
     while index < len(deltas) - 1:
-        print(type(deltas[index]))            
+        # print(type(deltas[index]))            
         if isinstance(deltas[index], numpy.uint8):
             value = deltas[index]
             count = 1
@@ -312,11 +324,12 @@ def compareFrames(previous, current):
                     print("Repeat: 64 x", value)
                     new += [Repeat(value, howmany=128)]
 
-            print("Repeat:", count, "x", value)
-            if count > 1:
+            if count > 2:
+                print("Repeat:", count, "x", value)
                 new += [Repeat(value, howmany=count)]
             else:
                 new += [value]
+                index -= (count - 1)
         else:
             new += [deltas[index]]
         index += 1
@@ -345,13 +358,13 @@ def save(output, args):
         with open(args.OUTPUT, "wb") as fh:
             fh.write(output)
     if c:
-        cstring = "const byte bAnimation[] PROGMEM = {\n"
+        cstring = "const byte bAnimation[] PROGMEM = {\n  "
         index = 1
         for byte in output:
 
             cstring += "0x{byte:02x},".format(byte=byte)
             if index % 16==0:
-                cstring += "\n"
+                cstring += "\n  "
             index += 1
 
         cstring = cstring + "\n};"
