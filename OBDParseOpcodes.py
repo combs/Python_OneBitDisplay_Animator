@@ -54,7 +54,6 @@ OP_REPEAT = 0xC0
 
 
 
-from PIL import Image, ImageSequence
 import argparse, struct, textwrap, time
 import numpy
 

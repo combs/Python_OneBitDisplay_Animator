@@ -98,7 +98,7 @@ def getFrameBytes(image):
 
     while y < (image.height - 1):
         for x in range(image.width):
-            index = ((x*height) + y) // 8 
+            index = ((y // 8 * image.width) + x)
             # print(x, y, index)
             values[index] = getVerticalByte(image, x, y)
             # print(getVerticalByte(image, x, y))
@@ -216,7 +216,7 @@ def generateOpCodes(deltas, pixels):
                 if isNextSmallSkip(deltas, index + length - 1):
                     skips = deltas[index + length].count
 
-                opcode = OP_COPYSKIP | ((length - 1) << 3) | skips
+                opcode = OP_COPYSKIP | ((length) << 3) | skips
 
                 output += [opcode, *small]
                 print("OP_COPYSKIP length", length, "skips", skips, "opcode", bin(opcode))
@@ -358,7 +358,7 @@ def save(output, args):
         with open(args.OUTPUT, "wb") as fh:
             fh.write(output)
     if c:
-        cstring = "const byte bAnimation[] PROGMEM = {\n  "
+        cstring = "#include \"Arduino.h\";\nconst byte bAnimation[] PROGMEM = {\n  "
         index = 1
         for byte in output:
 
@@ -371,7 +371,7 @@ def save(output, args):
 
         # cstring = textwrap.fill(cstring, width=90, drop_whitespace=False)
 
-        with open(args.OUTPUT + ".c", "w") as fh:
+        with open(args.OUTPUT + ".h", "w") as fh:
             fh.write(cstring) 
 
 
