@@ -174,7 +174,6 @@ def generateOpCodes(deltas, pixels):
                 output += [OP_REPEAT | (repeats - 1), item.data]
                 index += 1
                 blocks += item.repeats
-
         
         elif isinstance(item, Skip):
             skips = item.skips
@@ -250,7 +249,7 @@ def compareFrames(previous, current):
     opcodes = bytearray()
 
     currbytes = getFrameBytes(current)
-    # print(currbytes)
+    print(list(currbytes))
 
     if previous==None:
         # First frame
@@ -288,24 +287,26 @@ def compareFrames(previous, current):
             count = deltas[index].skips
 
             # print("starting count", count)
-            while ( ( index < len(deltas) - 1) and (isinstance(deltas[index + 1], Skip))):
+            while ( ( index + count < len(deltas) - 1) and (isinstance(deltas[index + count], Skip))):
                 count += 1
-                index += 1
 
                 if count > 255:
                     new += [Skip(256)]
                     count -= 256
+                    index += 256
 
             # print("final count", count)
             if count > 1:
                 new += [Skip(count)]
-                # TODO poss efficiency increase: rewind collapses if < 3
-
+                index += count
             else:
-                new += [currbytes[index]]
+                for i in range(count):
+                    new += [currbytes[index + i]]
+                index += count
+
         else:
             new += [deltas[index]]
-        index += 1
+            index += 1
 
     deltas = new
 
@@ -321,25 +322,28 @@ def compareFrames(previous, current):
             value = deltas[index]
             count = 1
             # print("Repeat: starting count", count, "for value", value)
-
-            while ( ( index + 1 < len(deltas) - 1) and (deltas[index + 1] == value)):
+            
+            while ( ( index + count < len(deltas) - 1) and (deltas[index + count] == value)):
                 count += 1
-                index += 1
                 
                 if count > 63:
                     count -= 64
-                    print("Repeat: 64 x", value)
+                    index += 64
+                    # print("Repeat: 64 x", value)
                     new += [Repeat(value, repeats=64)]
 
             if count > 2:
-                print("Repeat:", count, "x", value)
+                # print("Repeat:", count, "x", value)
                 new += [Repeat(value, repeats=count)]
+                index += count
+
             else:
-                new += [value]
-                index -= (count - 1)
+                new += [value] * count
+                index += count
+
         else:
             new += [deltas[index]]
-        index += 1
+            index += 1
 
     deltas = new
 
