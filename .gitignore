@@ -127,3 +127,7 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Python_OneBitDisplay_Animator
+*.gif
+*.out*
